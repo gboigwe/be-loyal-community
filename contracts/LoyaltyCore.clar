@@ -19,10 +19,10 @@
 (define-public (register-business (name (string-ascii 50)))
   (let ((caller tx-sender))
     (if (is-eq caller CONTRACT_OWNER)
-        (match (map-insert Businesses caller { name: name, active: true })
-          true (ok true)
-          false (err ERR_ALREADY_EXISTS))
-        ERR_UNAUTHORIZED)))
+        (if (map-insert Businesses caller { name: name, active: true })
+            (ok true)
+            (err ERR_ALREADY_EXISTS))
+        (err ERR_UNAUTHORIZED))))
 
 ;; Issue points to a user
 (define-public (issue-points (user principal) (amount uint))
@@ -33,7 +33,7 @@
           (map-set UserPoints { user: user, business: caller } new-points)
           (map-set BusinessTotalPoints caller (+ (default-to u0 (map-get? BusinessTotalPoints caller)) amount))
           (ok new-points))
-        ERR_UNAUTHORIZED)))
+        (err ERR_UNAUTHORIZED))))
 
 ;; Redeem points
 (define-public (redeem-points (business principal) (amount uint))
@@ -44,7 +44,7 @@
           (map-set UserPoints { user: caller, business: business } new-points)
           (map-set BusinessTotalPoints business (- (default-to u0 (map-get? BusinessTotalPoints business)) amount))
           (ok new-points))
-        ERR_INSUFFICIENT_BALANCE)))
+        (err ERR_INSUFFICIENT_BALANCE))))
 
 ;; Read-only functions
 
