@@ -27,37 +27,32 @@
 ;; Register a new business
 (define-public (register-business (name (string-ascii 50)))
   (let ((caller tx-sender))
-    (if (is-eq caller CONTRACT_OWNER)
-        (match (map-get? Businesses caller)
-          existing-data (err ERR_ALREADY_EXISTS)
-          (map-insert Businesses caller { name: name, active: true }))
-        (err ERR_UNAUTHORIZED))))
+    (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
+    (asserts! (is-none (map-get? Businesses caller)) ERR_ALREADY_EXISTS)
+    (ok (asserts! (map-insert Businesses caller { name: name, active: true }) ERR_ALREADY_EXISTS))))
 
 ;; Issue points to a user
 (define-public (issue-points (user principal) (amount uint))
   (let ((caller tx-sender))
-    (match (validate-business caller)
-      success (let ((current-points (default-to u0 (map-get? UserPoints { user: user, business: caller })))
-                    (new-points (+ current-points amount)))
-                (map-set UserPoints { user: user, business: caller } new-points)
-                (map-set BusinessTotalPoints caller 
-                  (+ (default-to u0 (map-get? BusinessTotalPoints caller)) amount))
-                (ok new-points))
-      error error)))
+    (asserts! (is-some (map-get? Businesses caller)) ERR_UNAUTHORIZED)
+    (let ((current-points (default-to u0 (map-get? UserPoints { user: user, business: caller })))
+          (new-points (+ current-points amount)))
+      (map-set UserPoints { user: user, business: caller } new-points)
+      (map-set BusinessTotalPoints caller 
+        (+ (default-to u0 (map-get? BusinessTotalPoints caller)) amount))
+      (ok new-points))))
 
 ;; Redeem points
 (define-public (redeem-points (business principal) (amount uint))
   (let ((caller tx-sender)
         (current-points (default-to u0 (map-get? UserPoints { user: caller, business: business }))))
-    (match (validate-business business)
-      success (if (>= current-points amount)
-                  (let ((new-points (- current-points amount)))
-                    (map-set UserPoints { user: caller, business: business } new-points)
-                    (map-set BusinessTotalPoints business 
-                      (- (default-to u0 (map-get? BusinessTotalPoints business)) amount))
-                    (ok new-points))
-                  (err ERR_INSUFFICIENT_BALANCE))
-      error error)))
+    (asserts! (is-some (map-get? Businesses business)) ERR_NOT_FOUND)
+    (asserts! (>= current-points amount) ERR_INSUFFICIENT_BALANCE)
+    (let ((new-points (- current-points amount)))
+      (map-set UserPoints { user: caller, business: business } new-points)
+      (map-set BusinessTotalPoints business 
+        (- (default-to u0 (map-get? BusinessTotalPoints business)) amount))
+      (ok new-points))))
 
 ;; Read-only functions
 
