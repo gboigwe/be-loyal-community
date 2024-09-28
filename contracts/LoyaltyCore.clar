@@ -8,6 +8,7 @@
 (define-constant ERR_ALREADY_EXISTS (err u102))
 (define-constant ERR_INSUFFICIENT_BALANCE (err u103))
 (define-constant ERR_INVALID_INPUT (err u104))
+(define-constant MAX_POINTS_PER_TRANSACTION u1000000) ;; Arbitrary limit, adjust as needed
 
 ;; Data maps
 (define-map Businesses principal { name: (string-ascii 50), active: bool })
@@ -16,42 +17,51 @@
 
 ;; Private functions
 
-;; Validate business existence
-(define-private (validate-business (business principal))
-  (match (map-get? Businesses business)
-    business-data (ok true)
-    (err ERR_NOT_FOUND)))
+;; Validate and sanitize string input
+(define-private (validate-string (input (string-ascii 50)))
+  (if (> (len input) u0)
+      input
+      ""))
+
+;; Validate amount
+(define-private (validate-amount (amount uint))
+  (if (<= amount MAX_POINTS_PER_TRANSACTION)
+      amount
+      MAX_POINTS_PER_TRANSACTION))
 
 ;; Public functions
 
 ;; Register a new business
 (define-public (register-business (name (string-ascii 50)))
-  (let ((caller tx-sender))
+  (let ((caller tx-sender)
+        (sanitized-name (validate-string name)))
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
     (asserts! (is-none (map-get? Businesses caller)) ERR_ALREADY_EXISTS)
-    (ok (asserts! (map-insert Businesses caller { name: name, active: true }) ERR_ALREADY_EXISTS))))
+    (ok (asserts! (map-insert Businesses caller { name: sanitized-name, active: true }) ERR_ALREADY_EXISTS))))
 
 ;; Issue points to a user
 (define-public (issue-points (user principal) (amount uint))
-  (let ((caller tx-sender))
+  (let ((caller tx-sender)
+        (validated-amount (validate-amount amount)))
     (asserts! (is-some (map-get? Businesses caller)) ERR_UNAUTHORIZED)
     (let ((current-points (default-to u0 (map-get? UserPoints { user: user, business: caller })))
-          (new-points (+ current-points amount)))
+          (new-points (+ current-points validated-amount)))
       (map-set UserPoints { user: user, business: caller } new-points)
       (map-set BusinessTotalPoints caller 
-        (+ (default-to u0 (map-get? BusinessTotalPoints caller)) amount))
+        (+ (default-to u0 (map-get? BusinessTotalPoints caller)) validated-amount))
       (ok new-points))))
 
 ;; Redeem points
 (define-public (redeem-points (business principal) (amount uint))
   (let ((caller tx-sender)
+        (validated-amount (validate-amount amount))
         (current-points (default-to u0 (map-get? UserPoints { user: caller, business: business }))))
     (asserts! (is-some (map-get? Businesses business)) ERR_NOT_FOUND)
-    (asserts! (>= current-points amount) ERR_INSUFFICIENT_BALANCE)
-    (let ((new-points (- current-points amount)))
+    (asserts! (>= current-points validated-amount) ERR_INSUFFICIENT_BALANCE)
+    (let ((new-points (- current-points validated-amount)))
       (map-set UserPoints { user: caller, business: business } new-points)
       (map-set BusinessTotalPoints business 
-        (- (default-to u0 (map-get? BusinessTotalPoints business)) amount))
+        (- (default-to u0 (map-get? BusinessTotalPoints business)) validated-amount))
       (ok new-points))))
 
 ;; Read-only functions
