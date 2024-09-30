@@ -22,6 +22,10 @@
 
 (define-map Categories (string-ascii 20) bool)
 
+;; To keep track of all categories
+(define-data-var CategoryCount uint u0)
+(define-map CategoryList uint (string-ascii 20))
+
 ;; Private functions
 
 ;; Check if a category exists
@@ -93,10 +97,15 @@
 
 ;; Add a new category (only contract owner)
 (define-public (add-category (category (string-ascii 20)))
-  (let ((caller tx-sender))
+  (let ((caller tx-sender)
+        (current-count (var-get CategoryCount)))
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
     (asserts! (and (> (len category) u0) (<= (len category) u20)) ERR_INVALID_INPUT)
-    (ok (map-insert Categories category true))
+    (asserts! (is-none (map-get? Categories category)) ERR_ALREADY_EXISTS)
+    (map-set Categories category true)
+    (map-set CategoryList current-count category)
+    (var-set CategoryCount (+ current-count u1))
+    (ok true)
   )
 )
 
@@ -104,7 +113,9 @@
 (define-public (remove-category (category (string-ascii 20)))
   (let ((caller tx-sender))
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
-    (ok (map-delete Categories category))
+    (asserts! (is-some (map-get? Categories category)) ERR_NOT_FOUND)
+    (map-delete Categories category)
+    (ok true)
   )
 )
 
@@ -120,7 +131,16 @@
 
 ;; Get all categories
 (define-read-only (get-all-categories)
-  (map-keys Categories))
+  (let ((category-count (var-get CategoryCount)))
+    (map get-category-at-index (list-of-integers category-count))))
+
+(define-private (list-of-integers (n uint))
+  (if (<= n u0)
+    (list)
+    (unwrap-panic (as-max-len? (concat (list-of-integers (- n u1)) (list n)) u256))))
+
+(define-read-only (get-category-at-index (index uint))
+  (default-to "" (map-get? CategoryList index)))
 
 ;; Check if a category exists
 (define-read-only (is-valid-category (category (string-ascii 20)))
