@@ -7,6 +7,7 @@
 (define-constant ERR_NOT_FOUND (err u101))
 (define-constant ERR_ALREADY_EXISTS (err u102))
 (define-constant ERR_INVALID_INPUT (err u103))
+(define-constant MAX_CATEGORY_COUNT u50)
 
 ;; Data maps
 (define-map Businesses 
@@ -102,6 +103,7 @@
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
     (asserts! (and (> (len category) u0) (<= (len category) u20)) ERR_INVALID_INPUT)
     (asserts! (is-none (map-get? Categories category)) ERR_ALREADY_EXISTS)
+    (asserts! (< current-count MAX_CATEGORY_COUNT) ERR_INVALID_INPUT)
     (map-set Categories category true)
     (map-set CategoryList current-count category)
     (var-set CategoryCount (+ current-count u1))
@@ -132,16 +134,16 @@
 ;; Get all categories
 (define-read-only (get-all-categories)
   (let ((category-count (var-get CategoryCount)))
-    (map get-category-at-index (list-of-integers category-count))))
+    (map get-category-at-index (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9))))
 
-(define-private (list-of-integers (n uint))
-  (if (<= n u0)
-    (list)
-    (unwrap-panic (as-max-len? (concat (list-of-integers (- n u1)) (list n)) u256))))
-
+;; Get category at index
 (define-read-only (get-category-at-index (index uint))
   (default-to "" (map-get? CategoryList index)))
 
 ;; Check if a category exists
 (define-read-only (is-valid-category (category (string-ascii 20)))
   (category-exists category))
+
+;; Get category count
+(define-read-only (get-category-count)
+  (var-get CategoryCount))
