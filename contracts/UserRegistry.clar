@@ -31,27 +31,26 @@
 
 ;; Variables
 (define-data-var UserCount uint u0)
+(define-data-var TierList (list 10 (string-ascii 20)) (list ))
 
 ;; Private functions
 
 ;; Calculate user tier based on total points
 (define-private (calculate-tier (total-points uint))
-  (fold check-tier-threshold (map-keys Tiers) "")
+  (let ((tier-list (var-get TierList)))
+    (filter-tier tier-list total-points)
+  )
 )
 
-(define-private (check-tier-threshold (tier (string-ascii 20)) (current-tier (string-ascii 20)))
-  (match (map-get? Tiers tier)
-    tier-info (if (and
-                    (>= total-points (get points-threshold tier-info))
-                    (or
-                      (is-eq current-tier "")
-                      (> (get points-threshold tier-info)
-                         (get points-threshold (unwrap-panic (map-get? Tiers current-tier))))
-                    )
-                  )
-                  tier
-                  current-tier)
-    current-tier
+(define-private (filter-tier (tiers (list 10 (string-ascii 20))) (total-points uint))
+  (match tiers
+    tier-list (let ((current-tier (unwrap-panic (element-at tier-list u0))))
+      (match (map-get? Tiers current-tier)
+        tier-info (if (>= total-points (get points-threshold tier-info))
+                    current-tier
+                    (filter-tier (unwrap-panic (as-max-len? (slice tier-list u1 u10) u10)) total-points))
+        "Bronze")) ;; Default to "Bronze" if no tier is found
+    "Bronze"
   )
 )
 
@@ -121,11 +120,15 @@
 
 ;; Add a new tier (only contract owner)
 (define-public (add-tier (tier-name (string-ascii 20)) (points-threshold uint) (benefits (string-utf8 280)))
-  (let ((caller tx-sender))
+  (let ((caller tx-sender)
+        (current-tiers (var-get TierList)))
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED)
     (asserts! (and (> (len tier-name) u0) (<= (len tier-name) u20)) ERR_INVALID_INPUT)
     (asserts! (and (> (len benefits) u0) (<= (len benefits) u280)) ERR_INVALID_INPUT)
-    (ok (map-insert Tiers tier-name { points-threshold: points-threshold, benefits: benefits }))
+    (asserts! (< (len current-tiers) u10) ERR_INVALID_INPUT)
+    (map-insert Tiers tier-name { points-threshold: points-threshold, benefits: benefits })
+    (var-set TierList (unwrap-panic (as-max-len? (append current-tiers tier-name) u10)))
+    (ok true)
   )
 )
 
@@ -145,4 +148,4 @@
 
 ;; Get all tiers
 (define-read-only (get-all-tiers)
-  (map-keys Tiers))
+  (var-get TierList))
