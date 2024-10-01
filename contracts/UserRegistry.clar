@@ -35,24 +35,19 @@
 
 ;; Private functions
 
-;; Calculate user tier based on total points
-(define-private (calculate-tier (total-points uint))
-  (let ((tier-list (var-get TierList)))
-    (filter-tier tier-list total-points)
-  )
-)
-
-(define-private (filter-tier (tiers (list 10 (string-ascii 20))) (total-points uint))
-  (match tiers
-    tier-list (let ((current-tier (unwrap-panic (element-at tier-list u0))))
-      (match (map-get? Tiers current-tier)
-        tier-info (if (>= total-points (get points-threshold tier-info))
-                    current-tier
-                    (filter-tier (unwrap-panic (as-max-len? (slice tier-list u1 u10) u10)) total-points))
-        "Bronze")) ;; Default to "Bronze" if no tier is found
-    "Bronze"
-  )
-)
+;; Get tier based on points
+(define-private (get-tier-for-points (points uint))
+  (let ((bronze-threshold (default-to u0 (get points-threshold (map-get? Tiers "Bronze"))))
+        (silver-threshold (default-to u0 (get points-threshold (map-get? Tiers "Silver"))))
+        (gold-threshold (default-to u0 (get points-threshold (map-get? Tiers "Gold"))))
+        (platinum-threshold (default-to u0 (get points-threshold (map-get? Tiers "Platinum")))))
+    (if (>= points platinum-threshold)
+      "Platinum"
+      (if (>= points gold-threshold)
+        "Gold"
+        (if (>= points silver-threshold)
+          "Silver"
+          "Bronze")))))
 
 ;; Public functions
 
@@ -103,7 +98,7 @@
     (match (map-get? Users user)
       existing-user 
         (let ((new-total (+ (get total-points existing-user) points-delta))
-              (new-tier (calculate-tier new-total)))
+              (new-tier (get-tier-for-points new-total)))
           (ok (map-set Users user
             (merge existing-user
               {
