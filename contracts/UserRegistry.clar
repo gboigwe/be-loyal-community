@@ -7,6 +7,7 @@
 (define-constant ERR_NOT_FOUND (err u101))
 (define-constant ERR_ALREADY_EXISTS (err u102))
 (define-constant ERR_INVALID_INPUT (err u103))
+(define-constant ERR_INSUFFICIENT_POINTS (err u104))
 
 ;; Data maps
 (define-map Users
@@ -97,16 +98,21 @@
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED) ;; Ensure only the LoyaltyCore contract can call this
     (match (map-get? Users user)
       existing-user 
-        (let ((new-total (+ (get total-points existing-user) points-delta))
-              (new-tier (get-tier-for-points new-total)))
-          (ok (map-set Users user
-            (merge existing-user
-              {
-                total-points: new-total,
-                tier: new-tier,
-                last-activity: block-height
-              }
-            )))
+        (let ((current-points (get total-points existing-user))
+              (new-total (if (> points-delta 0)
+                            (+ current-points (to-uint points-delta))
+                            (if (>= current-points (to-uint (abs points-delta)))
+                              (- current-points (to-uint (abs points-delta)))
+                              u0))))
+          (let ((new-tier (get-tier-for-points new-total)))
+            (ok (map-set Users user
+              (merge existing-user
+                {
+                  total-points: new-total,
+                  tier: new-tier,
+                  last-activity: block-height
+                }
+              ))))
         )
       ERR_NOT_FOUND
     )
