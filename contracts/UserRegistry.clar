@@ -99,10 +99,10 @@
     (match (map-get? Users user)
       existing-user 
         (let ((current-points (get total-points existing-user))
-              (new-total (if (> points-delta 0)
+              (new-total (if (>= points-delta 0)
                             (+ current-points (to-uint points-delta))
-                            (if (>= current-points (to-uint (abs points-delta)))
-                              (- current-points (to-uint (abs points-delta)))
+                            (if (>= current-points (to-uint (- 0 points-delta)))
+                              (- current-points (to-uint (- 0 points-delta)))
                               u0))))
           (let ((new-tier (get-tier-for-points new-total)))
             (ok (map-set Users user
