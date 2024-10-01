@@ -7,7 +7,7 @@
 (define-constant ERR_NOT_FOUND (err u101))
 (define-constant ERR_ALREADY_EXISTS (err u102))
 (define-constant ERR_INVALID_INPUT (err u103))
-(define-constant ERR_INSUFFICIENT_POINTS (err u104))
+(define-constant MAX_POINTS_THRESHOLD u1000000000) ;; 1 billion points as maximum threshold
 
 ;; Data maps
 (define-map Users
@@ -96,6 +96,7 @@
 (define-public (update-user-points (user principal) (points-delta int))
   (let ((caller tx-sender))
     (asserts! (is-eq caller CONTRACT_OWNER) ERR_UNAUTHORIZED) ;; Ensure only the LoyaltyCore contract can call this
+    (asserts! (is-some (map-get? Users user)) ERR_NOT_FOUND) ;; Check if the user exists
     (match (map-get? Users user)
       existing-user 
         (let ((current-points (get total-points existing-user))
@@ -127,6 +128,7 @@
     (asserts! (and (> (len tier-name) u0) (<= (len tier-name) u20)) ERR_INVALID_INPUT)
     (asserts! (and (> (len benefits) u0) (<= (len benefits) u280)) ERR_INVALID_INPUT)
     (asserts! (< (len current-tiers) u10) ERR_INVALID_INPUT)
+    (asserts! (<= points-threshold MAX_POINTS_THRESHOLD) ERR_INVALID_INPUT)
     (map-insert Tiers tier-name { points-threshold: points-threshold, benefits: benefits })
     (var-set TierList (unwrap-panic (as-max-len? (append current-tiers tier-name) u10)))
     (ok true)
